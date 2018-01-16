@@ -3,7 +3,7 @@ package mtg.dsl
 import scala.util.parsing.combinator._
 import mtg._
 
-trait LanguageParser{
+trait LanguageParser extends JavaTokenParsers{
   val gameM = ""
   val startM = ""
   val withM = ""
@@ -17,68 +17,104 @@ trait LanguageParser{
   val fourthM = ""
   val fifthM = ""
   val playM = ""
+  val drawM = ""
+  val cardM = ""
+  val aM = ""
+  val cardsM = ""
 }
 
-class EnglishParser extends LanguageParser {
-  override val gameM = "game"
-  override val startM = "start"
-  override val withM = "with"
-  override val deckM = "deck"
-  override val TM = "T"
-  override val tM = "t"
-  override val turnM = "turn"
-  override val firstM = "first"
-  override val secondM = "second"
-  override val thirdM = "third"
-  override val fourthM = "fourth"
-  override val fifthM = "fifth"
-  override val playM = "play"
+trait EnglishParser extends LanguageParser {
+  abstract override val TM = "T"
+  abstract override val tM = "t"
+  abstract override val turnM = "turn"
+  abstract override val firstM = "first"
+  abstract override val secondM = "second"
+  abstract override val thirdM = "third"
+  abstract override val fourthM = "fourth"
+  abstract override val fifthM = "fifth"
+  abstract override val playM = "play"
+  abstract override val drawM = "draw"
+  abstract override val aM = "a"
+  abstract override val cardM = "card"
+  abstract override val cardsM = "cards"
+}
+
+trait ItalianParser extends LanguageParser {
+  abstract override val TM = "T"
+  abstract override val tM = "t"
+  abstract override val turnM = "turno"
+  abstract override val firstM = "primo"
+  abstract override val secondM = "secondo"
+  abstract override val thirdM = "terzo"
+  abstract override val fourthM = "quarto"
+  abstract override val fifthM = "quinto"
+  abstract override val playM = "gioca"
+  abstract override val drawM = "pesca"
+  abstract override val aM = "una"
+  abstract override val cardM = "carta"
+  abstract override val cardsM = "carte"
 }
 
 object Utils {
   val fileName = "([a-zA-Z0-9\\- ]+)\n".r
-  val cardName = "([a-zA-Z0-9\\- ]+)".r
+  val cardName = "([^.\n]+)".r
 }
 
 class CardNotInDeck(s:String) extends RuntimeException(s)
 
-class MtgParser(lp: LanguageParser) extends JavaTokenParsers{
-  var deck:Deck = new Deck
-  def mtg = start ~ rep(turn) ^^ {
-    case p ~ actions => 
-        (p,new ShuffleAction::new DrawSeven::actions.flatten)
+class MtgParser(p:Player) extends LanguageParser{
+  def mtg = rep(turn) ^^ {
+    case actions => 
+        (p,new ShuffleAction::new DrawNAction(7)::actions.flatten)
   } 
-  def start = opt(lp.startM) ~> opt(lp.gameM) ~> opt(lp.withM) ~> opt(lp.deckM) ~> Utils.fileName ^^ {
-    case Utils.fileName(a) => 
-      this.deck = DeckBuilder.build(s"$a.deck")
-      val p = new Player(this.deck)
-      p.deck.cards = p.deck.allCards
-      p
-  }
-  def turn =  (turnNum ~> rep(play) <~ ".") ^^ {
+  def turn =  (turnNum ~> rep(action) <~ ".") ^^ {
     case lst => new DrawAction::lst
   }
-  def play = opt(lp.playM) ~> Utils.cardName ^^ {
+  def action = play | draw
+  def draw = drawMore | drawOne
+  def drawOne = drawM ~ opt(aM) ~ opt(cardM) ^^ {
+    case _ => new DrawAction 
+  }
+  def drawMore = drawM ~> wholeNumber <~ opt(cardsM) ^^ {
+    case n => new DrawNAction(n.toInt)
+  }
+  def play = playM ~> Utils.cardName ^^ {
     case Utils.cardName(s) => 
-      if (this.deck.cards.exists(card => card.name == s.toUpperCase))
+      if (this.p.deck.cards.exists(card => card.name == s.toUpperCase))
         new PlayAction(s.toUpperCase)
       else
         throw new CardNotInDeck(s.toUpperCase)
   }
-  def turnNum = ((lp.TM | lp.tM | lp.turnM) ~> (wordNumber | wholeNumber))
-  def wordNumber = lp.firstM | lp.secondM | lp.thirdM | lp.fourthM | lp.fifthM 
+  def turnNum = ((TM | tM | turnM) ~> (wordNumber | wholeNumber))
+  def wordNumber = firstM | secondM | thirdM | fourthM | fifthM 
 }
+
+class WrongArgs extends RuntimeException
+class WrongParserInit extends RuntimeException
 
 object MtgEval {
   def main(args:Array[String]) = {
-    args.foreach { filename =>
+    var player = new Player(new Deck)
+    var parser:Option[MtgParser] = None
+    val simulations = args.toList match {
+      case h1::h2::h3::tl =>
+        player = new Player(DeckBuilder.build(s"$h2.deck"))
+        player.deck.cards = player.deck.allCards
+        if (h1 == "ITA")
+          parser = Some(new MtgParser(player) with ItalianParser)
+        else
+          parser = Some(new MtgParser(player) with EnglishParser)
+        h3::tl
+      case _ => throw new WrongArgs
+    }
+    simulations.foreach { filename =>
       val lines = scala.io.Source.fromFile(filename).mkString
-      val p = new MtgParser(new EnglishParser)
+      val p = parser match{case Some(parser) => parser; case None => throw new WrongParserInit}
       p.parseAll(p.mtg,lines) match {
         case p.Success(result,_) => result match {
           case (player,actions) =>
             actions.foreach {a => println(a.toString)}
-            println(Simulator.simulate(100,player,actions))
+            println(Simulator.simulate(1000,player,actions))
         }
         case p.Failure(s,next) => println(s"Error:  $s at $next")
         case other => println(other)

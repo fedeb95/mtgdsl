@@ -31,28 +31,41 @@ class Player(val deck:Deck) {
   }
 }
 
+trait DebugAction extends Action{
+  abstract override def apply(p:Player):Boolean = {
+    val ret = super.apply(p)
+    val b = p.battlefield
+    val h = p.hand
+    println(s"battlefield: $b")
+    println(s"hand: $h")
+    ret
+  }
+}
+
 trait Action{
-  def act(p:Player):Boolean
+  def apply(p:Player):Boolean
 }
 
 class DrawAction extends Action{
-  def act(p:Player):Boolean = {
+  def apply(p:Player):Boolean = {
     p.deck.cards match {
         case h::tl => p.hand = h::p.hand; p.deck.cards = tl
         case _ => throw new EmptyDeck
     }
     true
   }
+  override def toString = "DRAW A CARD"
 }
 
-class DrawSeven extends Action {
-  def act(p:Player):Boolean = {
-    0.until(7).forall(_ => (new DrawAction).act(p)) 
+class DrawNAction(val n:Int) extends Action{
+  def apply(p:Player):Boolean = {
+    0.until(n).forall(_ => (new DrawAction).apply(p)) 
   }
+  override def toString = s"DRAW $n CARDS"
 }
 
 class PlayAction(val cardName:String) extends Action{
-  def act(p:Player):Boolean = {
+  def apply(p:Player):Boolean = {
     p.hand.foldLeft((List[Card](),false))((state,el) => state match{
       case (lst,true) => (el::lst,true) 
       case (lst,false) => if (el.name == cardName) (lst,true) else (el::lst,false)
@@ -61,16 +74,15 @@ class PlayAction(val cardName:String) extends Action{
       case (_,false) => false
     }
   }
-  override def toString = {
-    cardName 
-  }
+  override def toString = s"PLAY $cardName"
 }
 
 class ShuffleAction extends Action{
-  def act(p:Player):Boolean = {
+  def apply(p:Player):Boolean = {
     p.deck.cards = Random.shuffle(p.deck.cards)   
     true
   }
+  override def toString = "SHUFFLE DECK"
 }
 
 object Simulator {
@@ -89,7 +101,7 @@ object Simulator {
       pos
   }
   private def simulateOnce(p:Player,actions:List[Action]) = {
-    actions.foldLeft(true)((state,el)=>state && el.act(p)) 
+    actions.foldLeft(true)((state,el)=>state && el(p)) 
   }
 }
 
