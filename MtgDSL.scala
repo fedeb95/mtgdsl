@@ -105,6 +105,11 @@ object MtgEval {
         else
           parser = Some(new MtgParser(player) with EnglishParser)
         h3::tl
+      case h1::h2::tl =>
+        player = new Player(DeckBuilder.build(s"$h1.deck"))
+        player.deck.cards = player.deck.allCards
+        parser = Some(new MtgParser(player) with EnglishParser)
+        h2::tl
       case _ => throw new WrongArgs
     }
     simulations.foreach { filename =>
