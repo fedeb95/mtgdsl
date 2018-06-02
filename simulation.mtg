@@ -1,7 +1,23 @@
 t1
 play land
 play preordain
+top klin fiend 
+scry 2
+[
+    top klin fiend
+    top temur battle rage
+]
 draw a card.
-t2
+T2
 play land
 play klin fiend.
+t3
+play land
+play preordain 
+scry 2
+[
+    bottom land
+]
+draw a card.
+t4
+play temur battle rage.

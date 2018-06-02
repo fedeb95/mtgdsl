@@ -1,5 +1,4 @@
 package mtg.dsl
-
 import scala.util.parsing.combinator._
 import mtg._
 
@@ -21,6 +20,9 @@ trait LanguageParser extends JavaTokenParsers{
   val cardM = ""
   val aM = ""
   val cardsM = ""
+  val topM = ""
+  val bottomM = ""
+  val scryM = ""
 }
 
 trait EnglishParser extends LanguageParser {
@@ -37,6 +39,9 @@ trait EnglishParser extends LanguageParser {
   abstract override val aM = "a"
   abstract override val cardM = "card"
   abstract override val cardsM = "cards"
+  abstract override val topM = "top"
+  abstract override val bottomM = "bottom"
+  abstract override val scryM = "scry"
 }
 
 trait ItalianParser extends LanguageParser {
@@ -53,11 +58,14 @@ trait ItalianParser extends LanguageParser {
   abstract override val aM = "una"
   abstract override val cardM = "carta"
   abstract override val cardsM = "carte"
+  abstract override val topM = "sopra"
+  abstract override val bottomM = "sotto"
+  abstract override val scryM = "profetizza"
 }
 
 object Utils {
   val fileName = "([a-zA-Z0-9\\- ]+)\n".r
-  val cardName = "([^.\n]+)".r
+  val cardName = "([^.\\[\\]\n]+)".r
 }
 
 class CardNotInDeck(s:String) extends RuntimeException(s)
@@ -70,7 +78,17 @@ class MtgParser(p:Player) extends LanguageParser{
   def turn =  (turnNum ~> rep(action) <~ ".") ^^ {
     case lst => new DrawAction::lst
   }
-  def action = play | draw
+  def action = scry | play | draw 
+  def scry = scryM ~> wholeNumber ~ ("[" ~> rep(scryActions) <~ "]") ^^ {
+    case n ~ lst => new ScryAction(n.toInt,lst) 
+  }
+  def scryActions:Parser[ScrySubAction] = top | bottom
+  def top = topM ~> Utils.cardName ^^ {
+    case Utils.cardName(s) => new TopAction(s) 
+  }
+  def bottom = bottomM ~> Utils.cardName ^^ {
+    case Utils.cardName(s) => new BottomAction(s)
+  }
   def draw = drawMore | drawOne
   def drawOne = drawM ~ opt(aM) ~ opt(cardM) ^^ {
     case _ => new DrawAction 

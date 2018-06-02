@@ -25,6 +25,7 @@ class Deck {
 class Player(val deck:Deck) {
   var hand = List[Card]()
   var battlefield = List[Card]()
+  var looking = List[Card]()
   override def clone = {
     val p = new Player(this.deck.clone)
     p
@@ -83,6 +84,44 @@ class ShuffleAction extends Action{
     true
   }
   override def toString = "SHUFFLE DECK"
+}
+
+class ScryAction(n:Int,lst:List[ScrySubAction]) extends Action{
+  def apply(p:Player):Boolean = {
+    0.until(n).foreach{ _ =>
+      p.deck.cards match{
+        case h::tl => p.deck.cards = tl;p.looking = h::p.looking 
+        case _ => ()
+      } 
+    } 
+    lst.forall(el=>el(p))
+    p.deck.cards = p.looking ::: p.deck.cards
+    p.looking = List[Card]()
+    true
+  }
+}
+abstract class ScrySubAction extends Action
+class BottomAction(cardName:String) extends ScrySubAction{
+  def apply(p:Player):Boolean = {
+    p.looking = p.looking.foldLeft(List[Card]())((state,el)=>
+      if (el.name == cardName){
+        p.deck.cards = el::((p.deck.cards.reverse).reverse)
+        state
+      }else 
+        el::state)
+    true
+  }
+}
+
+class TopAction(cardName:String) extends ScrySubAction{
+  def apply(p:Player):Boolean = {
+    p.looking = p.looking.foldLeft(List[Card]())((state,el)=>
+      if (el.name == cardName) {
+        p.deck.cards ::= el
+        state
+      }else el::state)
+    true
+  } 
 }
 
 object Simulator {
